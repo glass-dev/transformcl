@@ -1,2 +1,39 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "transformcl"
+maintainers = [
+    { name = "Nicolas Tessore", email = "n.tessore@ucl.ac.uk" },
+]
+description = "Transform angular power spectra and correlation functions"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "array-api-compat",
+    "flt>=2025.1",
+]
+readme = { file = "README.md", content-type = "text/markdown" }
+license = { text = "MIT" }
+dynamic = ["version"]
+
+[project.optional-dependencies]
+doc = [
+    "sphinx",
+    "furo",
+    "sphinxcontrib-katex",
+    "numpydoc",
+]
+
+[project.urls]
+Documentation = "https://glass.readthedocs.io/projects/transformcl"
+Repository = "https://github.com/glass-dev/transformcl"
+Issues = "https://github.com/glass-dev/transformcl/issues"
+
+[tool.hatch.version]
+source = "vcs"

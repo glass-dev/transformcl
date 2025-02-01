@@ -1,84 +1,56 @@
-# author: Nicolas Tessore <n.tessore@ucl.ac.uk>
-# license: MIT
-'''
-
-Transform angular power spectra and correlation functions (:mod:`transformcl`)
-==============================================================================
-
-This is a minimal Python package for transformations between angular power
-spectra and correlation functions.  It is currently limited to the zero spin
-case.
-
-The package can be installed using pip::
-
-    pip install transformcl
-
-Then import the :func:`~transformcl.cltocorr` and :func:`~transformcl.corrtocl`
-functions from the package::
-
-    from transformcl import cltocorr, corrtocl
-
-Current functionality covers the absolutely minimal use case.  Please open an
-issue on GitHub if you would like to see anything added.
-
-
-Reference/API
--------------
-
-.. autosummary::
-   :toctree: api
-   :nosignatures:
-
-   cltocorr
-   corrtocl
-   theta
-   cltovar
-
-'''
-
-__version__ = '2022.8.9'
+"""Transform angular power spectra."""
 
 __all__ = [
-    'cltocorr',
-    'corrtocl',
-    'theta',
-    'cltovar',
+    "backend",
+    "cl",
+    "corr",
+    "theta",
+    "use",
+    "var",
+]
+
+from contextlib import contextmanager
+from typing import Literal
+
+from array_api_compat import array_namespace
+
+BackendStr = Literal[
+    "flt-ii",
+    "flt-i",
 ]
 
 
-import numpy as np
-from flt import dlt, idlt, theta
+backend: BackendStr = "flt-ii"
+"""Backend for transforms. See :ref:`backends`."""
 
 
-FOUR_PI = 4*np.pi
+@contextmanager
+def use(choice: BackendStr) -> None:
+    """Context manager to change backend. See :ref:`backends`."""
+    global backend
+    restore = backend
+    backend = choice
+    try:
+        yield
+    finally:
+        backend = restore
 
 
-def cltoxi(*args, **kwargs):
-    return cltocorr(*args, **kwargs)
+def corr(cl):
+    r"""
+    Transform angular power spectrum to angular correlation function.
 
+    Takes an angular power spectrum with :math:`\mathtt{n} =
+    \mathtt{lmax}+1` coefficients and returns the corresponding angular
+    correlation function in :math:`\mathtt{n}` points.
 
-def xitocl(*args, **kwargs):
-    return corrtocl(*args, **kwargs)
-
-
-def cltocorr(cl, closed=False):
-    r'''transform angular power spectrum to correlation function
-
-    Takes an angular power spectrum with :math:`\mathtt{n} = \mathtt{lmax}+1`
-    coefficients and returns the corresponding angular correlation function in
-    :math:`\mathtt{n}` points.
-
-    The correlation function values can be computed either over the closed
-    interval :math:`[0, \pi]`, in which case :math:`\theta_0 = 0` and
-    :math:`\theta_{n-1} = \pi`, or over the open interval :math:`(0, \pi)`.
+    The correlation function is computed at the angles returned by
+    :func:`transformcl.theta`.
 
     Parameters
     ----------
     cl : (n,) array_like
         Angular power spectrum from :math:`0` to :math:`\mathtt{lmax}`.
-    closed : bool
-        Compute correlation function over open (``closed=False``) or closed
-        (``closed=True``) interval.
 
     Returns
     -------
@@ -87,53 +59,51 @@ def cltocorr(cl, closed=False):
 
     See Also
     --------
-    transformcl.corrtocl : the inverse operation
-    transformcl.theta : compute the angles at which the correlation function is
-                        evaluated
+    transformcl.cl :
+        the inverse operation
+    transformcl.theta :
+        angles at which the correlation function is evaluated
 
-    Notes
-    -----
-    The computation uses the inverse discrete Legendre transform
-    :func:`flt.idlt`.
-
-    '''
+    """
 
     # length n of the transform
-    if np.ndim(cl) != 1:
-        raise TypeError('cl must be 1d array')
-    n = np.shape(cl)[-1]
+    if cl.ndim != 1:
+        raise TypeError("cl must be 1d array")
+    n = cl.shape[-1]
 
-    # DLT coefficients = (2l+1)/(4pi) * Cl
-    c = np.arange(1, 2*n+1, 2, dtype=float)
-    c /= FOUR_PI
-    c *= cl
+    if backend in ["flt-ii", "flt-i"]:
+        xp = array_namespace(cl)
+        # DLT coefficients = (2l+1)/(4pi) * Cl
+        a = (2 * xp.arange(n) + 1) / (4 * xp.pi) * cl
 
-    # perform the inverse DLT
-    corr = idlt(c, closed=closed)
+        if backend == "flt-ii":
+            import flt
 
-    # done
-    return corr
+            return flt.idlt(a)
+
+        if backend == "flt-i":
+            import flt
+
+            return flt.idlt(a, True)
+
+    raise NotImplementedError(f"unknown backend {backend!r}")
 
 
-def corrtocl(corr, closed=False):
-    r'''transform angular correlation function to power spectrum
+def cl(corr):
+    r"""
+    Transform angular correlation function to angular power spectrum.
 
-    Takes an angular function in :math:`\mathtt{n}` points and returns the
-    corresponding angular power spectrum from :math:`0` to :math:`\mathtt{lmax}
-    = \mathtt{n}-1`.
+    Takes an angular function in :math:`\mathtt{n}` points and returns
+    the corresponding angular power spectrum from :math:`0` to
+    :math:`\mathtt{lmax} = \mathtt{n}-1`.
 
     The correlation function must be given at the angles returned by
-    :func:`transformcl.theta`.  These can be distributed either over the closed
-    interval :math:`[0, \pi]`, in which case :math:`\theta_0 = 0` and
-    :math:`\theta_{n-1} = \pi`, or over the open interval :math:`(0, \pi)`.
+    :func:`transformcl.theta`.
 
     Parameters
     ----------
     corr : (n,) array_like
         Angular correlation function.
-    closed : bool
-        Compute correlation function over open (``closed=False``) or closed
-        (``closed=True``) interval.
 
     Returns
     -------
@@ -142,43 +112,48 @@ def corrtocl(corr, closed=False):
 
     See Also
     --------
-    transformcl.cltocorr : the inverse operation
-    transformcl.theta : compute the angles at which the correlation function is
-                        evaluated
+    transformcl.corr :
+        the inverse operation
+    transformcl.theta :
+        angles at which the correlation function is evaluated
 
-    Notes
-    -----
-    The computation uses the discrete Legendre transform :func:`flt.dlt`.
-
-    '''
+    """
 
     # length n of the transform
-    if np.ndim(corr) != 1:
-        raise TypeError('corr must be 1d array')
-    n = np.shape(corr)[-1]
+    if corr.ndim != 1:
+        raise TypeError("corr must be 1d array")
+    n = corr.shape[-1]
 
-    # compute the DLT coefficients
-    cl = dlt(corr, closed=closed)
+    if backend in ["flt-ii", "flt-i"]:
+        xp = array_namespace(corr)
+        # DLT coefficients = (2l+1)/(4pi) * Cl
+        fl = (2 * xp.arange(n) + 1) / (4 * xp.pi)
 
-    # DLT coefficients = (2l+1)/(4pi) * Cl
-    cl /= np.arange(1, 2*n+1, 2, dtype=float)
-    cl *= FOUR_PI
+        if backend == "flt-ii":
+            import flt
 
-    # done
-    return cl
+            return flt.dlt(corr) / fl
+
+        if backend == "flt-i":
+            import flt
+
+            return flt.dlt(corr, True) / fl
+
+    raise NotImplementedError(f"unknown backend {backend!r}")
 
 
-def cltovar(cl):
-    r'''compute variance from angular power spectrum
+def var(cl):
+    r"""
+    Compute variance from angular power spectrum.
 
-    Given the angular power spectrum, compute the variance of the spherical
-    random field in a point.
+    Given the angular power spectrum, compute the variance of the
+    spherical random field in a point.
 
     Parameters
     ----------
     cl : array_like
-        Angular power spectrum.  Can be multidimensional, with the last axis
-        representing the modes.
+        Angular power spectrum.  Can be multidimensional, with the last
+        axis representing the modes.
 
     Returns
     -------
@@ -187,14 +162,37 @@ def cltovar(cl):
 
     Notes
     -----
-    The variance :math:`\sigma^2` of the field with power spectrum :math:`C_l`
-    is
+    The variance :math:`\sigma^2` of the field with power spectrum
+    :math:`C_l` is
 
     .. math::
 
         \sigma^2 = \sum_{l} \frac{2l + 1}{4\pi} \, C_l \;.
 
-    '''
+    """
+    xp = array_namespace(cl)
+    ell = xp.arange(cl.shape[-1])
+    return xp.sum((2 * ell + 1) / (4 * xp.pi) * cl, axis=-1)
 
-    l = np.arange(np.shape(cl)[-1])
-    return np.sum((2*l+1)/(4*np.pi)*cl, axis=-1)
+
+def theta(n):
+    r"""
+    Return the angles :math:`\theta_1, \ldots, \theta_n` of the
+    correlation function with *n* points.
+    """
+
+    if backend == "flt-ii":
+        import flt
+
+        return flt.theta(n)
+    if backend == "flt-i":
+        import flt
+
+        return flt.theta(n, True)
+
+    raise NotImplementedError(f"unknown backend {backend!r}")
+
+
+cltocorr = corr
+corrtocl = cl
+cltovar = var
