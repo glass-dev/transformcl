@@ -12,6 +12,6 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: pipx run build
       - uses: pypa/gh-action-pypi-publish@v1.12.4
