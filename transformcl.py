@@ -138,7 +138,7 @@ def var(cl):
 
     """
     xp = array_namespace(cl)
-    ell = xp.arange(cl.shape[-1])
+    ell = xp.arange(cl.shape[-1], dtype=xp.float64)
     return xp.sum((2 * ell + 1) / (4 * xp.pi) * cl, axis=-1)
 
 
